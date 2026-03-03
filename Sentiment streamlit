@@ -1,0 +1,53 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import pickle
+
+# 1. Page Configuration
+st.set_page_config(page_title="Flipkart Sentiment Dashboard", layout="wide")
+st.title("🛍️ Flipkart Product Sentiment Analysis")
+
+# 2. Load ML Assets & Data
+@st.cache_resource
+def load_assets():
+    model = pickle.load(open("sentiment_model.pkl", "rb"))
+    vectorizer = pickle.load(open("tfidf_vectorizer.pkl", "rb"))
+    return model, vectorizer
+
+@st.cache_data
+def load_data():
+    return pd.read_csv("Dataset-SA.csv")
+
+model, vectorizer = load_assets()
+df = load_data()
+
+# 3. Sidebar
+st.sidebar.header("Filter Options")
+rate_filter = st.sidebar.multiselect("Select Rate", options=sorted(df['Rate'].unique()), default=df['Rate'].unique())
+filtered_df = df[df['Rate'].isin(rate_filter)]
+
+# 4. Metrics
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Total Reviews", len(filtered_df))
+c2.metric("Positive 😊", (filtered_df['Sentiment'].str.lower() == 'positive').sum())
+c3.metric("Neutral 😐", (filtered_df['Sentiment'].str.lower() == 'neutral').sum())
+c4.metric("Negative 😡", (filtered_df['Sentiment'].str.lower() == 'negative').sum())
+
+# 5. Chart
+st.subheader("📊 Sentiment Distribution")
+fig = px.pie(filtered_df, names='Sentiment', hole=0.4,
+             color_discrete_map={'positive': '#2ecc71', 'neutral': '#f1c40f', 'negative': '#e74c3c'})
+st.plotly_chart(fig, use_container_width=True)
+
+# 6. Prediction
+st.divider()
+st.subheader("🔮 Live Sentiment Prediction")
+user_input = st.text_input("Enter a review to test:")
+if st.button("Predict"):
+    if user_input:
+        pred = model.predict(vectorizer.transform([user_input]))[0]
+        mapping = {0: "Negative 😡", 1: "Neutral 😐", 2: "Positive 😊"}
+        st.info(f"The model predicts: **{mapping[pred]}**")
+
+if st.checkbox("Show Raw Data"):
+    st.write(filtered_df.head(10))
